@@ -44,7 +44,7 @@ class MainAppScreen extends StatefulWidget {
 
 class _MainAppScreenState extends State<MainAppScreen> {
   int _selectedIndex = 0;
-  int _remainingSwipes = 30;
+  final int _remainingSwipes = 30;
   bool _likesChecked = true;
   bool _settingsChecked = true;
 

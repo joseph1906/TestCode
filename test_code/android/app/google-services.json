@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "300747451569",
+    "project_id": "lovatra-labs33",
+    "storage_bucket": "lovatra-labs33.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:300747451569:android:44c59a4a02d4be43aac690",
+        "android_client_info": {
+          "package_name": "com.example.test_code"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "300747451569-vnd3err39a4imk658gj8a1pnh5lo98so.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDzamNJzX_44lMGp8Cp9Fn63NvhyZEXaqg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "300747451569-vnd3err39a4imk658gj8a1pnh5lo98so.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "300747451569-epftncustg64oa84ull7l9567t3u8kln.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.testCode"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

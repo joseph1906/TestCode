@@ -1,6 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'services/auth_service.dart';
+import 'reset_password_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  await Supabase.initialize(
+    url: 'https://wuttauqzqfkedndqgqms.supabase.co',
+    anonKey: 'sb_publishable_CVazjgij0xU560SvIehiog_Hm01hH0l',
+  );
+  
   runApp(const LovatraApp());
 }
 
@@ -35,7 +45,6 @@ class LovatraApp extends StatelessWidget {
   }
 }
 
-// ========== HOME SCREEN ==========
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -298,7 +307,6 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 40),
-          // Only Join Lovatra button - Sign In button removed
           GestureDetector(
             onTap: () {
               Navigator.push(
@@ -354,7 +362,6 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-// ========== REUSABLE COMPONENTS ==========
 class ProfileCard extends StatelessWidget {
   final String name;
   final String tag;
@@ -491,7 +498,6 @@ class ValuePill extends StatelessWidget {
   }
 }
 
-// ========== DATING APP MAIN SCREEN ==========
 class MainAppScreen extends StatefulWidget {
   const MainAppScreen({super.key});
 
@@ -501,7 +507,7 @@ class MainAppScreen extends StatefulWidget {
 
 class _MainAppScreenState extends State<MainAppScreen> {
   int _selectedIndex = 0;
-  int _remainingSwipes = 30;
+  final int _remainingSwipes = 30;
   bool _likesChecked = true;
   bool _settingsChecked = true;
 
@@ -515,7 +521,6 @@ class _MainAppScreenState extends State<MainAppScreen> {
             icon: const Icon(Icons.search),
             onPressed: () {},
           ),
-          // Logout button in app bar
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
@@ -571,7 +576,6 @@ class _MainAppScreenState extends State<MainAppScreen> {
           ),
           const SizedBox(height: 20),
           const Divider(color: Color(0xFF333333)),
-          // Navigation items with checkboxes
           _buildDrawerItem('Discover', 0, Icons.explore),
           _buildDrawerItemWithCheckbox('Likes', 1, Icons.favorite_border, _likesChecked, (value) {
             setState(() => _likesChecked = value ?? false);
@@ -651,7 +655,6 @@ class _MainAppScreenState extends State<MainAppScreen> {
   }
 
   void _logout(BuildContext context) {
-    // Navigate back to HomeScreen and remove all previous routes
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -722,9 +725,6 @@ class _MainAppScreenState extends State<MainAppScreen> {
   }
 }
 
-// ============================================
-// DISCOVER SCREEN
-// ============================================
 class DiscoverScreen extends StatelessWidget {
   const DiscoverScreen({super.key});
 
@@ -734,7 +734,6 @@ class DiscoverScreen extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 20),
-          // Navigation Tabs
           SizedBox(
             height: 50,
             child: ListView(
@@ -754,7 +753,6 @@ class DiscoverScreen extends StatelessWidget {
           const Divider(height: 1, color: Color(0xFF333333)),
           const SizedBox(height: 20),
           
-          // User Profile Card
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Container(
@@ -816,7 +814,6 @@ class DiscoverScreen extends StatelessWidget {
           
           const SizedBox(height: 20),
           
-          // Swipe Counter
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
             margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -844,13 +841,11 @@ class DiscoverScreen extends StatelessWidget {
           
           const SizedBox(height: 20),
           
-          // Action Buttons
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Dislike
                 CircleAvatar(
                   radius: 30,
                   backgroundColor: const Color(0xFF333333),
@@ -861,7 +856,6 @@ class DiscoverScreen extends StatelessWidget {
                   ),
                 ),
                 
-                // Super Like
                 CircleAvatar(
                   radius: 30,
                   backgroundColor: const Color(0xFF00D4AA).withOpacity(0.1),
@@ -872,7 +866,6 @@ class DiscoverScreen extends StatelessWidget {
                   ),
                 ),
                 
-                // Like
                 CircleAvatar(
                   radius: 30,
                   backgroundColor: const Color(0xFFFF4D8D).withOpacity(0.2),
@@ -905,9 +898,6 @@ class DiscoverScreen extends StatelessWidget {
   }
 }
 
-// ============================================
-// LIKES SCREEN
-// ============================================
 class LikesScreen extends StatelessWidget {
   const LikesScreen({super.key});
 
@@ -922,7 +912,6 @@ class LikesScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Premium banner
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -983,9 +972,6 @@ class LikesScreen extends StatelessWidget {
   }
 }
 
-// ============================================
-// FEED SCREEN
-// ============================================
 class FeedScreen extends StatelessWidget {
   const FeedScreen({super.key});
 
@@ -998,7 +984,6 @@ class FeedScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Post card
           Container(
             margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
@@ -1058,9 +1043,6 @@ class FeedScreen extends StatelessWidget {
   }
 }
 
-// ============================================
-// EXPLORE SCREEN
-// ============================================
 class ExploreScreen extends StatelessWidget {
   const ExploreScreen({super.key});
 
@@ -1103,9 +1085,6 @@ class ExploreScreen extends StatelessWidget {
   }
 }
 
-// ============================================
-// SUGGESTIONS SCREEN
-// ============================================
 class SuggestionsScreen extends StatelessWidget {
   const SuggestionsScreen({super.key});
 
@@ -1148,9 +1127,6 @@ class SuggestionsScreen extends StatelessWidget {
   }
 }
 
-// ============================================
-// CHAT SCREEN
-// ============================================
 class ChatScreen extends StatelessWidget {
   const ChatScreen({super.key});
 
@@ -1162,7 +1138,6 @@ class ChatScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // Segmented control
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: Row(
@@ -1174,7 +1149,6 @@ class ChatScreen extends StatelessWidget {
             ),
           ),
           const Divider(height: 1, color: Color(0xFF333333)),
-          // Chat list
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(0),
@@ -1307,9 +1281,6 @@ class _MessageItem extends StatelessWidget {
   }
 }
 
-// ============================================
-// ACTIVITY SCREEN
-// ============================================
 class ActivityScreen extends StatelessWidget {
   const ActivityScreen({super.key});
 
@@ -1439,9 +1410,6 @@ class _CommentsTab extends StatelessWidget {
   }
 }
 
-// ============================================
-// SETTINGS SCREEN
-// ============================================
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -1453,7 +1421,6 @@ class SettingsScreen extends StatelessWidget {
       ),
       body: ListView(
         children: [
-          // Profile section
           Container(
             color: const Color(0xFF1A1A1A),
             child: Padding(
@@ -1517,7 +1484,6 @@ class SettingsScreen extends StatelessWidget {
           ),
           const Divider(height: 1, color: Color(0xFF333333)),
 
-          // Premium upgrade section
           Container(
             color: const Color(0xFF1A1A1A),
             padding: const EdgeInsets.all(20),
@@ -1602,7 +1568,6 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-// ========== SIGNUP SCREEN ==========
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
@@ -1616,24 +1581,48 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  
+
   bool _isLoading = false;
   bool _obscurePassword = true;
+  String _errorMessage = '';
+  final AuthService _authService = AuthService();
 
   Future<void> _submitForm() async {
     if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      
-      await Future.delayed(const Duration(seconds: 2));
-      
-      setState(() => _isLoading = false);
-      
-      // After successful signup, go directly to MainAppScreen (second page)
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const MainAppScreen()),
-        (route) => false,
-      );
+      setState(() {
+        _isLoading = true;
+        _errorMessage = '';
+      });
+
+      try {
+        await _authService.register(
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+          firstName: _firstNameController.text.trim(),
+          lastName: _lastNameController.text.trim(),
+        );
+
+        setState(() => _isLoading = false);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account created! Please sign in.'),
+              backgroundColor: Color(0xFF00D4AA),
+            ),
+          );
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+          );
+        }
+      } catch (e) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -1695,8 +1684,26 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
               ),
               const SizedBox(height: 40),
-              
-              // First Name Field
+
+              if (_errorMessage.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF4D8D).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFFF4D8D)),
+                  ),
+                  child: Text(
+                    _errorMessage,
+                    style: const TextStyle(
+                      color: Color(0xFFFF4D8D),
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+
               Text(
                 'First Name',
                 style: TextStyle(color: Colors.grey[400], fontSize: 14, fontWeight: FontWeight.w500),
@@ -1731,8 +1738,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 },
               ),
               const SizedBox(height: 20),
-              
-              // Last Name Field
+
               Text(
                 'Last Name',
                 style: TextStyle(color: Colors.grey[400], fontSize: 14, fontWeight: FontWeight.w500),
@@ -1764,8 +1770,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 },
               ),
               const SizedBox(height: 20),
-              
-              // Email Field
+
               Text(
                 'Email Address',
                 style: TextStyle(color: Colors.grey[400], fontSize: 14, fontWeight: FontWeight.w500),
@@ -1801,8 +1806,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 },
               ),
               const SizedBox(height: 20),
-              
-              // Password Field
+
               Text(
                 'Password',
                 style: TextStyle(color: Colors.grey[400], fontSize: 14, fontWeight: FontWeight.w500),
@@ -1845,8 +1849,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 },
               ),
               const SizedBox(height: 30),
-              
-              // Terms Agreement
+
               Row(
                 children: [
                   Icon(Icons.info, color: Colors.grey[400], size: 16),
@@ -1860,8 +1863,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 ],
               ),
               const SizedBox(height: 40),
-              
-              // Create Account Button
+
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -1894,8 +1896,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              
-              // Login Link
+
               Center(
                 child: TextButton(
                   onPressed: () {
@@ -1929,7 +1930,6 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 }
 
-// ========== LOGIN SCREEN ==========
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -1943,22 +1943,45 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  String _errorMessage = '';
+  final AuthService _authService = AuthService();
 
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      
-      await Future.delayed(const Duration(seconds: 2));
-      
-      setState(() => _isLoading = false);
-      
-      // After successful login, go directly to MainAppScreen (second page)
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const MainAppScreen()),
-        (route) => false,
-      );
+      setState(() {
+        _isLoading = true;
+        _errorMessage = '';
+      });
+
+      try {
+        await _authService.login(
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+        );
+
+        setState(() => _isLoading = false);
+
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const MainAppScreen()),
+            (route) => false,
+          );
+        }
+      } catch (e) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isLoading = false;
+        });
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -2009,8 +2032,26 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 40),
-              
-              // Email Field
+
+              if (_errorMessage.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF4D8D).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFFF4D8D)),
+                  ),
+                  child: Text(
+                    _errorMessage,
+                    style: const TextStyle(
+                      color: Color(0xFFFF4D8D),
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+
               Text(
                 'Email Address',
                 style: TextStyle(color: Colors.grey[400], fontSize: 14, fontWeight: FontWeight.w500),
@@ -2046,8 +2087,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 },
               ),
               const SizedBox(height: 20),
-              
-              // Password Field
+
               Text(
                 'Password',
                 style: TextStyle(color: Colors.grey[400], fontSize: 14, fontWeight: FontWeight.w500),
@@ -2090,17 +2130,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 },
               ),
               const SizedBox(height: 20),
-              
-              // Forgot Password
+
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Password reset feature would open here'),
-                        backgroundColor: Color(0xFF00D4AA),
-                      ),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ResetPasswordScreen()),
                     );
                   },
                   child: const Text(
@@ -2110,8 +2147,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 30),
-              
-              // Sign In Button
+
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -2144,8 +2180,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 30),
-              
-              // Divider
+
               const Center(
                 child: Text(
                   'Or sign in with',
@@ -2153,8 +2188,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              
-              // Social Login
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -2162,7 +2196,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Google sign in would open here'),
+                          content: Text('Google sign in coming soon'),
                           backgroundColor: Color(0xFF00D4AA),
                         ),
                       );
@@ -2174,7 +2208,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Apple sign in would open here'),
+                          content: Text('Apple sign in coming soon'),
                           backgroundColor: Color(0xFF00D4AA),
                         ),
                       );
@@ -2184,8 +2218,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
               const SizedBox(height: 40),
-              
-              // Sign Up Link
+
               Center(
                 child: TextButton(
                   onPressed: () {
@@ -2219,7 +2252,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// ========== WELCOME SCREEN ==========
 class WelcomeScreen extends StatelessWidget {
   final String firstName;
   final String email;
@@ -2309,7 +2341,6 @@ class WelcomeScreen extends StatelessWidget {
                     const SizedBox(height: 20),
                     ElevatedButton(
                       onPressed: () {
-                        // After welcome screen, go to MainAppScreen
                         Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(builder: (context) => const MainAppScreen()),
@@ -2337,7 +2368,6 @@ class WelcomeScreen extends StatelessWidget {
               const SizedBox(height: 30),
               TextButton(
                 onPressed: () {
-                  // Skip personality test and go directly to MainAppScreen
                   Navigator.pushAndRemoveUntil(
                     context,
                     MaterialPageRoute(builder: (context) => const MainAppScreen()),
@@ -2357,7 +2387,6 @@ class WelcomeScreen extends StatelessWidget {
   }
 }
 
-// ========== PERSONALITY TEST SCREEN ==========
 class PersonalityTestScreen extends StatefulWidget {
   const PersonalityTestScreen({super.key});
 
@@ -2494,12 +2523,13 @@ class _PersonalityTestScreenState extends State<PersonalityTestScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Retake', style: TextStyle(color: Colors.grey)),
           ),
+          // UPDATED: Changed from MainAppScreen to HomeScreen
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (context) => const MainAppScreen()),
+                MaterialPageRoute(builder: (context) => const HomeScreen()),
                 (route) => false,
               );
             },
@@ -2508,7 +2538,7 @@ class _PersonalityTestScreenState extends State<PersonalityTestScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             child: const Text(
-              'Go to Dating App',
+              'Go to Dating Page',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 16,
