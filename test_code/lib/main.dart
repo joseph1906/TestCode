@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import 'services/auth_service.dart';
+import 'services/image_service.dart';
 import 'reset_password_screen.dart';
 
 void main() async {
@@ -510,6 +513,145 @@ class _MainAppScreenState extends State<MainAppScreen> {
   final int _remainingSwipes = 30;
   bool _likesChecked = true;
   bool _settingsChecked = true;
+  
+  // Store user profile data
+  Map<String, dynamic>? _userProfile;
+  final AuthService _authService = AuthService();
+  final ImageService _imageService = ImageService(); // ADD THIS
+  String? _profileImageUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final profile = await _authService.getCurrentUserProfile();
+      if (mounted) {
+        setState(() {
+          _userProfile = profile;
+          _profileImageUrl = profile?['profile_image_url'];
+        });
+      }
+    } catch (e) {
+      print('Error loading user profile: $e');
+    }
+  }
+
+  Future<void> _updateProfileImage(String imageUrl) async {
+    try {
+      await _authService.updateProfile(profileImageUrl: imageUrl);
+      setState(() {
+        _profileImageUrl = imageUrl;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile photo updated!'),
+          backgroundColor: Color(0xFF00D4AA),
+        ),
+      );
+    } catch (e) {
+      print('Error updating profile image: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: const Color(0xFFFF4D8D),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showImagePicker() async {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        color: const Color(0xFF1A1A1A),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.white),
+              title: const Text('Choose from Gallery', style: TextStyle(color: Colors.white)),
+              onTap: () async {
+                Navigator.pop(context);
+                final imageUrl = await _imageService.pickAndUploadImage();
+                if (imageUrl != null) {
+                  await _updateProfileImage(imageUrl);
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.white),
+              title: const Text('Take Photo', style: TextStyle(color: Colors.white)),
+              onTap: () async {
+                Navigator.pop(context);
+                final imageUrl = await _imageService.takeAndUploadPhoto();
+                if (imageUrl != null) {
+                  await _updateProfileImage(imageUrl);
+                }
+              },
+            ),
+            if (_profileImageUrl != null && _profileImageUrl!.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Remove Photo', style: TextStyle(color: Colors.red)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _updateProfileImage('');
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getUserName() {
+    if (_userProfile != null) {
+      final firstName = _userProfile?['first_name']?.toString() ?? '';
+      final lastName = _userProfile?['last_name']?.toString() ?? '';
+      return '$firstName $lastName'.trim();
+    }
+    return 'Joseph Sawasawa';
+  }
+
+  String _getDisplayName() {
+    if (_userProfile != null) {
+      final firstName = _userProfile?['first_name']?.toString() ?? 'User';
+      final age = _userProfile?['age']?.toString() ?? '24';
+      return '$firstName, $age';
+    }
+    return 'Tim, 24';
+  }
+
+  String _getUserBio() {
+    if (_userProfile != null) {
+      final bio = _userProfile?['bio']?.toString();
+      if (bio != null && bio.isNotEmpty) {
+        return bio;
+      }
+    }
+    return 'An adventurous and kind-hearted person who values deep connections and exploring new things.';
+  }
+
+  String _getUserEmail() {
+    if (_userProfile != null) {
+      return _userProfile?['email']?.toString() ?? '';
+    }
+    return 'user@example.com';
+  }
+
+  void _logout(BuildContext context) {
+    _authService.logout();
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => const HomeScreen()),
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -535,6 +677,10 @@ class _MainAppScreenState extends State<MainAppScreen> {
   }
 
   Widget _buildDrawer() {
+    final userName = _getUserName();
+    final displayName = _getDisplayName();
+    final userBio = _getUserBio();
+
     return Drawer(
       backgroundColor: const Color(0xFF1A1A1A),
       child: ListView(
@@ -546,9 +692,54 @@ class _MainAppScreenState extends State<MainAppScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Tim, 24',
-                  style: TextStyle(
+                GestureDetector(
+                  onTap: _showImagePicker,
+                  child: Stack(
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFF333333),
+                          image: _profileImageUrl != null && _profileImageUrl!.isNotEmpty
+                              ? DecorationImage(
+                                  image: NetworkImage(_profileImageUrl!),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: _profileImageUrl == null || _profileImageUrl!.isEmpty
+                            ? const Icon(
+                                Icons.person,
+                                size: 40,
+                                color: Colors.white,
+                              )
+                            : null,
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF4D8D),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  displayName,
+                  style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -556,7 +747,7 @@ class _MainAppScreenState extends State<MainAppScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'An adventurous and kind-hearted person who values deep connections and exploring new things.',
+                  userBio,
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey[400],
@@ -609,16 +800,15 @@ class _MainAppScreenState extends State<MainAppScreen> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  'Joseph Sawasawa',
-                  style: TextStyle(
+                Text(
+                  userName,
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 20),
-                // Logout button in drawer
                 ElevatedButton(
                   onPressed: () {
                     _logout(context);
@@ -651,14 +841,6 @@ class _MainAppScreenState extends State<MainAppScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  void _logout(BuildContext context) {
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const HomeScreen()),
-      (route) => false,
     );
   }
 
@@ -704,7 +886,12 @@ class _MainAppScreenState extends State<MainAppScreen> {
   Widget _buildBody() {
     switch (_selectedIndex) {
       case 0:
-        return const DiscoverScreen();
+        return DiscoverScreen(
+          userName: _getDisplayName(),
+          userBio: _getUserBio(),
+          profileImageUrl: _profileImageUrl,
+          onImageUpdate: _updateProfileImage,
+        );
       case 1:
         return const LikesScreen();
       case 2:
@@ -714,19 +901,80 @@ class _MainAppScreenState extends State<MainAppScreen> {
       case 4:
         return const SuggestionsScreen();
       case 5:
-        return const ChatScreen();
+        return ChatScreen(userName: _getUserName());
       case 6:
         return const ActivityScreen();
       case 7:
-        return const SettingsScreen();
+        return SettingsScreen(
+          userName: _getUserName(),
+          userEmail: _getUserEmail(),
+          userProfile: _userProfile,
+          profileImageUrl: _profileImageUrl,
+          onProfileUpdate: _loadUserProfile,
+          onImageUpdate: _updateProfileImage,
+        );
       default:
-        return const DiscoverScreen();
+        return DiscoverScreen(
+          userName: _getDisplayName(),
+          userBio: _getUserBio(),
+          profileImageUrl: _profileImageUrl,
+          onImageUpdate: _updateProfileImage,
+        );
     }
   }
 }
 
 class DiscoverScreen extends StatelessWidget {
-  const DiscoverScreen({super.key});
+  final String userName;
+  final String userBio;
+  final String? profileImageUrl;
+  final Function(String)? onImageUpdate;
+
+  const DiscoverScreen({
+    super.key,
+    required this.userName,
+    required this.userBio,
+    this.profileImageUrl,
+    this.onImageUpdate,
+  });
+
+  void _showImagePicker(BuildContext context) async {
+    final imageService = ImageService();
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        color: const Color(0xFF1A1A1A),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.white),
+              title: const Text('Choose from Gallery', style: TextStyle(color: Colors.white)),
+              onTap: () async {
+                Navigator.pop(context);
+                final imageUrl = await imageService.pickAndUploadImage();
+                if (imageUrl != null && onImageUpdate != null) {
+                  onImageUpdate!(imageUrl);
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.white),
+              title: const Text('Take Photo', style: TextStyle(color: Colors.white)),
+              onTap: () async {
+                Navigator.pop(context);
+                final imageUrl = await imageService.takeAndUploadPhoto();
+                if (imageUrl != null && onImageUpdate != null) {
+                  onImageUpdate!(imageUrl);
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -767,19 +1015,60 @@ class DiscoverScreen extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const CircleAvatar(
-                        radius: 30,
-                        backgroundColor: Color(0xFFFF4D8D),
-                        child: Icon(Icons.person, color: Colors.white, size: 30),
+                      GestureDetector(
+                        onTap: () {
+                          _showImagePicker(context);
+                        },
+                        child: Stack(
+                          children: [
+                            Container(
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: const Color(0xFF333333),
+                                image: profileImageUrl != null && profileImageUrl!.isNotEmpty
+                                    ? DecorationImage(
+                                        image: NetworkImage(profileImageUrl!),
+                                        fit: BoxFit.cover,
+                                      )
+                                    : null,
+                              ),
+                              child: profileImageUrl == null || profileImageUrl!.isEmpty
+                                  ? const Icon(
+                                      Icons.person,
+                                      size: 30,
+                                      color: Colors.white,
+                                    )
+                                  : null,
+                            ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFF4D8D),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.camera_alt,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Tim, 24',
-                              style: TextStyle(
+                            Text(
+                              userName,
+                              style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
@@ -787,7 +1076,7 @@ class DiscoverScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'An adventurous and kind-hearted person who values deep connections and exploring new things.',
+                              userBio,
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey[400],
@@ -1128,7 +1417,9 @@ class SuggestionsScreen extends StatelessWidget {
 }
 
 class ChatScreen extends StatelessWidget {
-  const ChatScreen({super.key});
+  final String userName;
+
+  const ChatScreen({super.key, required this.userName});
 
   @override
   Widget build(BuildContext context) {
@@ -1152,10 +1443,10 @@ class ChatScreen extends StatelessWidget {
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(0),
-              children: const [
+              children: [
                 _MessageItem(
                   name: 'aine',
-                  message: 'Join 2 - You can now chat with Joseph Sawasawa!',
+                  message: 'Join 2 - You can now chat with $userName!',
                   time: 'JUST NOW',
                   isUnread: true,
                 ),
@@ -1410,11 +1701,177 @@ class _CommentsTab extends StatelessWidget {
   }
 }
 
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
+class SettingsScreen extends StatefulWidget {
+  final String userName;
+  final String userEmail;
+  final Map<String, dynamic>? userProfile;
+  final String? profileImageUrl;
+  final VoidCallback onProfileUpdate;
+  final Function(String)? onImageUpdate;
+
+  const SettingsScreen({
+    super.key,
+    required this.userName,
+    required this.userEmail,
+    this.userProfile,
+    this.profileImageUrl,
+    required this.onProfileUpdate,
+    this.onImageUpdate,
+  });
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late TextEditingController _firstNameController;
+  late TextEditingController _lastNameController;
+  late TextEditingController _ageController;
+  late TextEditingController _bioController;
+  final AuthService _authService = AuthService();
+  final ImageService _imageService = ImageService(); // ADD THIS
+  String? _currentProfileImageUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _firstNameController = TextEditingController(
+      text: widget.userProfile?['first_name']?.toString() ?? '',
+    );
+    _lastNameController = TextEditingController(
+      text: widget.userProfile?['last_name']?.toString() ?? '',
+    );
+    _ageController = TextEditingController(
+      text: widget.userProfile?['age']?.toString() ?? '',
+    );
+    _bioController = TextEditingController(
+      text: widget.userProfile?['bio']?.toString() ?? '',
+    );
+    _currentProfileImageUrl = widget.profileImageUrl;
+  }
+
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _ageController.dispose();
+    _bioController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _updateProfile() async {
+    try {
+      await _authService.updateProfile(
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        age: _ageController.text.trim().isNotEmpty ? int.tryParse(_ageController.text.trim()) : null,
+        bio: _bioController.text.trim(),
+        profileImageUrl: _currentProfileImageUrl,
+      );
+      
+      widget.onProfileUpdate();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile updated successfully!'),
+          backgroundColor: Color(0xFF00D4AA),
+        ),
+      );
+    } catch (e) {
+      print('Error updating profile: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error updating profile: $e'),
+          backgroundColor: const Color(0xFFFF4D8D),
+        ),
+      );
+    }
+  }
+
+  Future<void> _updateProfileImage(String imageUrl) async {
+    try {
+      await _authService.updateProfile(profileImageUrl: imageUrl);
+      setState(() {
+        _currentProfileImageUrl = imageUrl;
+      });
+      
+      // Update parent if callback exists
+      if (widget.onImageUpdate != null) {
+        widget.onImageUpdate!(imageUrl);
+      }
+      
+      widget.onProfileUpdate();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile photo updated successfully!'),
+          backgroundColor: Color(0xFF00D4AA),
+        ),
+      );
+    } catch (e) {
+      print('Error updating profile image: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error updating photo: $e'),
+          backgroundColor: const Color(0xFFFF4D8D),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showImagePicker() async {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        color: const Color(0xFF1A1A1A),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.white),
+              title: const Text('Choose from Gallery', style: TextStyle(color: Colors.white)),
+              onTap: () async {
+                Navigator.pop(context);
+                final imageUrl = await _imageService.pickAndUploadImage();
+                if (imageUrl != null) {
+                  await _updateProfileImage(imageUrl);
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.white),
+              title: const Text('Take Photo', style: TextStyle(color: Colors.white)),
+              onTap: () async {
+                Navigator.pop(context);
+                final imageUrl = await _imageService.takeAndUploadPhoto();
+                if (imageUrl != null) {
+                  await _updateProfileImage(imageUrl);
+                }
+              },
+            ),
+            if (_currentProfileImageUrl != null && _currentProfileImageUrl!.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Remove Photo', style: TextStyle(color: Colors.red)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _updateProfileImage('');
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final firstName = widget.userProfile?['first_name']?.toString() ?? '';
+    final lastName = widget.userProfile?['last_name']?.toString() ?? '';
+    final fullName = '$firstName $lastName'.trim();
+    final displayName = fullName.isNotEmpty ? fullName : widget.userName;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
@@ -1428,52 +1885,88 @@ class SettingsScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  GestureDetector(
+                    onTap: _showImagePicker,
+                    child: Stack(
+                      children: [
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF333333),
+                            image: _currentProfileImageUrl != null && _currentProfileImageUrl!.isNotEmpty
+                                ? DecorationImage(
+                                    image: NetworkImage(_currentProfileImageUrl!),
+                                    fit: BoxFit.cover,
+                                  )
+                                : null,
+                          ),
+                          child: _currentProfileImageUrl == null || _currentProfileImageUrl!.isEmpty
+                              ? const Icon(
+                                  Icons.person,
+                                  size: 40,
+                                  color: Colors.white,
+                                )
+                              : null,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFF4D8D),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
                   Row(
                     children: [
-                      const CircleAvatar(
-                        radius: 40,
-                        backgroundColor: Color(0xFFFF4D8D),
-                        child: Icon(
-                          Icons.person,
-                          size: 40,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 20),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Joseph Sawasawa, 25',
-                              style: TextStyle(
+                            Text(
+                              displayName.isNotEmpty ? '$displayName, 25' : 'User, 25',
+                              style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
                             ),
                             const SizedBox(height: 4),
-                            const Text(
-                              '@JOSEPHSAWASAWA',
-                              style: TextStyle(
+                            Text(
+                              widget.userEmail,
+                              style: const TextStyle(
                                 color: Colors.grey,
                                 fontSize: 14,
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            ElevatedButton.icon(
-                              onPressed: () {},
-                              icon: const Icon(Icons.edit, size: 16),
-                              label: const Text('Edit Profile'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF333333),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
                           ],
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          _showEditProfileDialog();
+                        },
+                        icon: const Icon(Icons.edit, size: 16),
+                        label: const Text('Edit Profile'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF333333),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
                       ),
                     ],
@@ -1490,7 +1983,7 @@ class SettingsScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                   const Text(
                   'Lovatra Premium',
                   style: TextStyle(
                     fontSize: 18,
@@ -1561,6 +2054,88 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditProfileDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        title: const Text('Edit Profile', style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _firstNameController,
+                decoration: const InputDecoration(
+                  labelText: 'First Name',
+                  labelStyle: TextStyle(color: Colors.grey),
+                  border: OutlineInputBorder(),
+                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF333333))),
+                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF4D8D))),
+                ),
+                style: const TextStyle(color: Colors.white),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _lastNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Last Name',
+                  labelStyle: TextStyle(color: Colors.grey),
+                  border: OutlineInputBorder(),
+                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF333333))),
+                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF4D8D))),
+                ),
+                style: const TextStyle(color: Colors.white),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _ageController,
+                decoration: const InputDecoration(
+                  labelText: 'Age',
+                  labelStyle: TextStyle(color: Colors.grey),
+                  border: OutlineInputBorder(),
+                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF333333))),
+                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF4D8D))),
+                ),
+                style: const TextStyle(color: Colors.white),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _bioController,
+                decoration: const InputDecoration(
+                  labelText: 'Bio',
+                  labelStyle: TextStyle(color: Colors.grey),
+                  border: OutlineInputBorder(),
+                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF333333))),
+                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFFF4D8D))),
+                ),
+                style: const TextStyle(color: Colors.white),
+                maxLines: 3,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _updateProfile();
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF4D8D),
+            ),
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -2523,7 +3098,6 @@ class _PersonalityTestScreenState extends State<PersonalityTestScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Retake', style: TextStyle(color: Colors.grey)),
           ),
-          // UPDATED: Changed from MainAppScreen to HomeScreen
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
