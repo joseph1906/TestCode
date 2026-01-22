@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:async';
 import 'services/auth_service.dart';
 import 'services/image_service.dart';
 import 'reset_password_screen.dart';
@@ -514,10 +515,9 @@ class _MainAppScreenState extends State<MainAppScreen> {
   bool _likesChecked = true;
   bool _settingsChecked = true;
   
-  // Store user profile data
   Map<String, dynamic>? _userProfile;
   final AuthService _authService = AuthService();
-  final ImageService _imageService = ImageService(); // ADD THIS
+  final ImageService _imageService = ImageService();
   String? _profileImageUrl;
 
   @override
@@ -1332,6 +1332,64 @@ class FeedScreen extends StatelessWidget {
   }
 }
 
+// ================= IMAGE SERVICE =================
+class ImageService {
+  final supabase = Supabase.instance.client;
+  final picker = ImagePicker();
+
+  Future<String?> pickAndUploadImage() async {
+    try {
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile != null) {
+        return await uploadImage(File(pickedFile.path));
+      }
+      return null;
+    } catch (e) {
+      print('Error picking image: $e');
+      return null;
+    }
+  }
+
+  Future<String?> takeAndUploadPhoto() async {
+    try {
+      final pickedFile = await picker.pickImage(source: ImageSource.camera);
+      if (pickedFile != null) {
+        return await uploadImage(File(pickedFile.path));
+      }
+      return null;
+    } catch (e) {
+      print('Error taking photo: $e');
+      return null;
+    }
+  }
+
+  Future<String> uploadImage(File imageFile) async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) throw Exception('No user logged in');
+
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = '${user.id}_$timestamp.${imageFile.path.split('.').last}';
+      
+      // Upload to storage bucket named 'profile-images'
+      await supabase.storage.from('profile-images').upload(
+        fileName,
+        imageFile,
+        fileOptions: const FileOptions(upsert: true),
+      );
+
+      // Get the public URL
+      final publicUrl = supabase.storage.from('profile-images').getPublicUrl(fileName);
+      
+      return publicUrl;
+    } catch (e) {
+      print('Error uploading image: $e');
+      rethrow;
+    }
+  }
+}
+
+// ================= EXPLORE SCREEN (UPDATED - REMOVED UPLOAD) =================
 class ExploreScreen extends StatelessWidget {
   const ExploreScreen({super.key});
 
@@ -1340,31 +1398,66 @@ class ExploreScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Explore'),
+        // Removed the upload icon button from app bar
       ),
-      body: Center(
+      body: Padding(
+        padding: const EdgeInsets.all(20),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.public,
-              size: 80,
-              color: Color(0xFF00D4AA),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Explore',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Discover new connections worldwide',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[400],
+            // Removed the upload button and related content
+            const SizedBox(height: 40),
+            
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.explore,
+                      size: 80,
+                      color: Color(0xFF333333),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Explore Community',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Connect with people from around the world',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 30),
+                    ElevatedButton(
+                      onPressed: () {
+                        // Navigate to community features
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF4D8D),
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Discover People',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -1390,7 +1483,7 @@ class SuggestionsScreen extends StatelessWidget {
             const Icon(
               Icons.people,
               size: 80,
-              color: Color(0xFFFF4D8D),
+              color: const Color(0xFFFF4D8D),
             ),
             const SizedBox(height: 20),
             const Text(
@@ -1516,14 +1609,14 @@ class _MessageItem extends StatelessWidget {
         color: isUnread ? const Color(0xFFFF4D8D).withOpacity(0.05) : const Color(0xFF0A0A0A),
         border: const Border(
           bottom: BorderSide(
-            color: Color(0xFF333333),
+            color: const Color(0xFF333333),
             width: 1,
           ),
         ),
       ),
       child: ListTile(
         leading: const CircleAvatar(
-          backgroundColor: Color(0xFFFF4D8D),
+          backgroundColor: const Color(0xFFFF4D8D),
           child: Icon(Icons.person, color: Colors.white),
         ),
         title: Text(
@@ -1560,7 +1653,7 @@ class _MessageItem extends StatelessWidget {
                 width: 8,
                 height: 8,
                 decoration: const BoxDecoration(
-                  color: Color(0xFFFF4D8D),
+                  color: const Color(0xFFFF4D8D),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -1583,8 +1676,8 @@ class ActivityScreen extends StatelessWidget {
         appBar: AppBar(
           title: const Text('Activity'),
           bottom: const TabBar(
-            indicatorColor: Color(0xFFFF4D8D),
-            labelColor: Color(0xFFFF4D8D),
+            indicatorColor: const Color(0xFFFF4D8D),
+            labelColor: const Color(0xFFFF4D8D),
             unselectedLabelColor: Colors.grey,
             tabs: [
               Tab(text: 'All'),
@@ -1729,7 +1822,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _ageController;
   late TextEditingController _bioController;
   final AuthService _authService = AuthService();
-  final ImageService _imageService = ImageService(); // ADD THIS
+  final ImageService _imageService = ImageService();
   String? _currentProfileImageUrl;
 
   @override
@@ -1771,20 +1864,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
       
       widget.onProfileUpdate();
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile updated successfully!'),
-          backgroundColor: Color(0xFF00D4AA),
-        ),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile updated successfully!'),
+            backgroundColor: Color(0xFF00D4AA),
+          ),
+        );
+      }
     } catch (e) {
       print('Error updating profile: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating profile: $e'),
-          backgroundColor: const Color(0xFFFF4D8D),
-        ),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating profile: $e'),
+            backgroundColor: const Color(0xFFFF4D8D),
+          ),
+        );
+      }
     }
   }
 
@@ -1795,27 +1892,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _currentProfileImageUrl = imageUrl;
       });
       
-      // Update parent if callback exists
       if (widget.onImageUpdate != null) {
         widget.onImageUpdate!(imageUrl);
       }
       
       widget.onProfileUpdate();
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile photo updated successfully!'),
-          backgroundColor: Color(0xFF00D4AA),
-        ),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile photo updated successfully!'),
+            backgroundColor: Color(0xFF00D4AA),
+          ),
+        );
+      }
     } catch (e) {
       print('Error updating profile image: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error updating photo: $e'),
-          backgroundColor: const Color(0xFFFF4D8D),
-        ),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating photo: $e'),
+            backgroundColor: const Color(0xFFFF4D8D),
+          ),
+        );
+      }
     }
   }
 
@@ -1861,6 +1961,84 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ====== NEW: Upload Photo Section ======
+  Widget _buildUploadSection() {
+    return Container(
+      color: const Color(0xFF1A1A1A),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Upload Photos',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'ADD MORE PHOTOS TO YOUR PROFILE',
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0A0A0A),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF333333)),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.add_a_photo,
+                  size: 40,
+                  color: Colors.grey[600],
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Upload Profile Photos',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Add more photos to showcase your personality',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: _showImagePicker,
+                  icon: const Icon(Icons.add_a_photo, size: 20),
+                  label: const Text('Upload Photo'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF4D8D),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1977,13 +2155,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 1, color: Color(0xFF333333)),
 
+          // ====== ADDED: Upload Photos Section ======
+          _buildUploadSection(),
+          const Divider(height: 1, color: Color(0xFF333333)),
+
           Container(
             color: const Color(0xFF1A1A1A),
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                   const Text(
+                const Text(
                   'Lovatra Premium',
                   style: TextStyle(
                     fontSize: 18,
