@@ -1261,74 +1261,947 @@ class LikesScreen extends StatelessWidget {
   }
 }
 
-class FeedScreen extends StatelessWidget {
+class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
 
+  @override
+  State<FeedScreen> createState() => _FeedScreenState();
+}
+
+class _FeedScreenState extends State<FeedScreen> {
+  final supabase = Supabase.instance.client;
+  final picker = ImagePicker();
+  
+  List<FeedPost> feedPosts = [];
+  bool isLoading = true;
+  bool isUploading = false;
+  TextEditingController _captionController = TextEditingController();
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadFeedPosts();
+    _checkUserLikes();
+  }
+  
+  Future<void> _loadFeedPosts() async {
+    try {
+      setState(() => isLoading = true);
+      
+      // Get all feed posts with user profiles
+      final response = await supabase
+          .from('feed_posts')
+          .select('''
+            *,
+            profiles:user_id (
+              id,
+              first_name,
+              last_name,
+              profile_image_url
+            )
+          ''')
+          .order('created_at', ascending: false);
+      
+      // Get all likes to count them properly
+      final likesResponse = await supabase
+          .from('post_likes')
+          .select('post_id')
+          .order('created_at');
+      
+      // Count likes per post
+      final Map<String, int> likeCounts = {};
+      for (var like in likesResponse) {
+        final postId = like['post_id'].toString();
+        likeCounts[postId] = (likeCounts[postId] ?? 0) + 1;
+      }
+      
+      // Get current user's likes
+      final currentUserId = supabase.auth.currentUser?.id;
+      final userLikesResponse = currentUserId != null
+          ? await supabase
+              .from('post_likes')
+              .select('post_id')
+              .eq('user_id', currentUserId)
+          : [];
+      
+      final Set<String> userLikedPostIds = {};
+      for (var like in userLikesResponse) {
+        userLikedPostIds.add(like['post_id'].toString());
+      }
+      
+      // Process posts
+      if (response != null && response is List) {
+        final posts = (response as List).map((item) {
+          final postId = item['id'].toString();
+          
+          // Get user profile data
+          final profile = item['profiles'];
+          String? firstName, lastName, userAvatar;
+          
+          if (profile is Map<String, dynamic>) {
+            firstName = profile['first_name']?.toString();
+            lastName = profile['last_name']?.toString();
+            userAvatar = profile['profile_image_url']?.toString();
+          } else if (profile is List && profile.isNotEmpty) {
+            final firstProfile = profile[0];
+            if (firstProfile is Map<String, dynamic>) {
+              firstName = firstProfile['first_name']?.toString();
+              lastName = firstProfile['last_name']?.toString();
+              userAvatar = firstProfile['profile_image_url']?.toString();
+            }
+          }
+          
+          final userName = (firstName != null && lastName != null) 
+              ? '$firstName $lastName'.trim()
+              : (firstName ?? 'Anonymous');
+          
+          return FeedPost(
+            id: postId,
+            userId: item['user_id']?.toString() ?? '',
+            mediaUrl: item['media_url']?.toString() ?? '',
+            mediaType: item['media_type']?.toString() ?? 'image',
+            caption: item['caption']?.toString(),
+            createdAt: item['created_at'] != null 
+                ? DateTime.parse(item['created_at'].toString())
+                : DateTime.now(),
+            userName: userName,
+            userAvatar: userAvatar,
+            likeCount: likeCounts[postId] ?? 0,
+            isLikedByUser: userLikedPostIds.contains(postId),
+          );
+        }).toList();
+        
+        setState(() {
+          feedPosts = posts;
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          feedPosts = [];
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading feed posts: $e');
+      setState(() {
+        feedPosts = [];
+        isLoading = false;
+      });
+    }
+  }
+  
+  Future<void> _checkUserLikes() async {
+    try {
+      final currentUserId = supabase.auth.currentUser?.id;
+      if (currentUserId == null || feedPosts.isEmpty) return;
+      
+      final userLikesResponse = await supabase
+          .from('post_likes')
+          .select('post_id')
+          .eq('user_id', currentUserId);
+      
+      final Set<String> userLikedPostIds = {};
+      for (var like in userLikesResponse) {
+        userLikedPostIds.add(like['post_id'].toString());
+      }
+      
+      setState(() {
+        for (var post in feedPosts) {
+          post.isLikedByUser = userLikedPostIds.contains(post.id);
+        }
+      });
+    } catch (e) {
+      print('Error checking user likes: $e');
+    }
+  }
+  
+  Future<void> _handleLike(FeedPost post) async {
+    try {
+      final currentUserId = supabase.auth.currentUser?.id;
+      if (currentUserId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please login to like posts'),
+            backgroundColor: Color(0xFFFF4D8D),
+          ),
+        );
+        return;
+      }
+      
+      if (post.isLikedByUser) {
+        // Remove like
+        await supabase
+            .from('post_likes')
+            .delete()
+            .eq('post_id', post.id)
+            .eq('user_id', currentUserId);
+        
+        setState(() {
+          post.isLikedByUser = false;
+          post.likeCount = post.likeCount - 1;
+        });
+      } else {
+        // Add like
+        await supabase
+            .from('post_likes')
+            .insert({
+              'post_id': post.id,
+              'user_id': currentUserId,
+              'created_at': DateTime.now().toIso8601String(),
+            });
+        
+        setState(() {
+          post.isLikedByUser = true;
+          post.likeCount = post.likeCount + 1;
+        });
+      }
+    } catch (e) {
+      print('Error handling like: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: const Color(0xFFFF4D8D),
+        ),
+      );
+    }
+  }
+  
+  void _showUploadOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[700],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF4D8D).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.photo_library,
+                  color: Color(0xFFFF4D8D),
+                ),
+              ),
+              title: const Text(
+                'Upload Photo',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              subtitle: const Text(
+                'Choose from gallery',
+                style: TextStyle(color: Colors.grey),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _showCaptionDialog(isVideo: false);
+              },
+            ),
+            ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00D4AA).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.video_library,
+                  color: Color(0xFF00D4AA),
+                ),
+              ),
+              title: const Text(
+                'Upload Video',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              subtitle: const Text(
+                'Choose from gallery',
+                style: TextStyle(color: Colors.grey),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _showCaptionDialog(isVideo: true);
+              },
+            ),
+            ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF333333),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.camera_alt,
+                  color: Colors.white,
+                ),
+              ),
+              title: const Text(
+                'Take Photo',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              subtitle: const Text(
+                'Use camera',
+                style: TextStyle(color: Colors.grey),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _showCaptionDialog(isVideo: false, fromCamera: true);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  void _showCaptionDialog({required bool isVideo, bool fromCamera = false}) {
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1A1A1A),
+            title: const Text(
+              'Add a caption',
+              style: TextStyle(color: Colors.white),
+            ),
+            content: TextField(
+              controller: _captionController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'What\'s on your mind?',
+                hintStyle: const TextStyle(color: Colors.grey),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFF333333)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFFF4D8D)),
+                ),
+              ),
+              maxLines: 3,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  _captionController.clear();
+                  Navigator.pop(context);
+                },
+                child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _uploadMedia(isVideo: isVideo, fromCamera: fromCamera);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF4D8D),
+                ),
+                child: const Text('Post'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+  
+  Future<void> _uploadMedia({required bool isVideo, required bool fromCamera}) async {
+    try {
+      setState(() => isUploading = true);
+      
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('Please login to post');
+      }
+      
+      // Pick file based on source
+      XFile? pickedFile;
+      if (fromCamera) {
+        pickedFile = await picker.pickImage(source: ImageSource.camera);
+      } else {
+        if (isVideo) {
+          pickedFile = await picker.pickVideo(source: ImageSource.gallery);
+        } else {
+          pickedFile = await picker.pickImage(source: ImageSource.gallery);
+        }
+      }
+      
+      if (pickedFile == null) {
+        setState(() => isUploading = false);
+        return;
+      }
+      
+      // Create user-specific folder path for RLS policies
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final extension = isVideo ? 'mp4' : pickedFile.path.split('.').last;
+      final fileName = '${user.id}/feed_$timestamp.$extension';
+      final bucketName = isVideo ? 'feed-videos' : 'feed-images';
+      
+      // Read file as bytes
+      final file = File(pickedFile.path);
+      final bytes = await file.readAsBytes();
+      
+      // Upload to storage with user folder
+      await supabase.storage.from(bucketName).uploadBinary(
+        fileName,
+        bytes,
+        fileOptions: FileOptions(
+          upsert: true,
+          contentType: isVideo ? 'video/mp4' : 'image/jpeg',
+        ),
+      );
+      
+      // Get public URL
+      final publicUrl = supabase.storage.from(bucketName).getPublicUrl(fileName);
+      
+      // Create post in database
+      await supabase.from('feed_posts').insert({
+        'user_id': user.id,
+        'media_url': publicUrl,
+        'media_type': isVideo ? 'video' : 'image',
+        'caption': _captionController.text,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+      
+      // Clear caption and reload posts
+      _captionController.clear();
+      await _loadFeedPosts();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${isVideo ? 'Video' : 'Photo'} posted successfully!'),
+          backgroundColor: const Color(0xFF00D4AA),
+        ),
+      );
+    } catch (e) {
+      print('Error creating post: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: ${e.toString()}'),
+          backgroundColor: const Color(0xFFFF4D8D),
+        ),
+      );
+    } finally {
+      setState(() => isUploading = false);
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Feed'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF333333)),
+        actions: [
+          IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF4D8D),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.add,
+                color: Colors.white,
+                size: 20,
+              ),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            onPressed: _showUploadOptions,
+          ),
+        ],
+      ),
+      body: isLoading
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFFFF4D8D),
+              ),
+            )
+          : isUploading
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Color(0xFFFF4D8D),
-                        child: Icon(Icons.person, color: Colors.white),
+                      CircularProgressIndicator(color: Color(0xFFFF4D8D)),
+                      SizedBox(height: 20),
+                      Text(
+                        'Uploading...',
+                        style: TextStyle(color: Colors.white),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'crying soul',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: Colors.white,
+                    ],
+                  ),
+                )
+              : feedPosts.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.dynamic_feed,
+                            size: 80,
+                            color: Color(0xFF333333),
+                          ),
+                          const SizedBox(height: 20),
+                          const Text(
+                            'No Posts Yet',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Be the first to share something!',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(height: 30),
+                          ElevatedButton(
+                            onPressed: _showUploadOptions,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF4D8D),
+                              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            Text(
-                              '@umathusseln Heart broken 💔 @bauer',
-                              style: TextStyle(
-                                color: Colors.grey[400],
-                                fontSize: 14,
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.add, size: 20),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Create Post',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadFeedPosts,
+                      color: const Color(0xFFFF4D8D),
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: feedPosts.length,
+                        itemBuilder: (context, index) {
+                          final post = feedPosts[index];
+                          return FeedPostCard(
+                            post: post,
+                            onLike: () => _handleLike(post),
+                          );
+                        },
+                      ),
+                    ),
+    );
+  }
+}
+
+class FeedPost {
+  final String id;
+  final String userId;
+  final String mediaUrl;
+  final String mediaType;
+  final String? caption;
+  final DateTime createdAt;
+  final String? userName;
+  final String? userAvatar;
+  int likeCount;
+  bool isLikedByUser;
+  
+  FeedPost({
+    required this.id,
+    required this.userId,
+    required this.mediaUrl,
+    required this.mediaType,
+    this.caption,
+    required this.createdAt,
+    this.userName,
+    this.userAvatar,
+    required this.likeCount,
+    this.isLikedByUser = false,
+  });
+  
+  factory FeedPost.fromJson(Map<String, dynamic> json) {
+  // FIX 1: Handle likes data more safely
+  int likeCount = 0;
+  final likesData = json['likes'];
+  
+  if (likesData is List && likesData.isNotEmpty) {
+    // Check if first element has 'count' property
+    if (likesData[0] is Map<String, dynamic>) {
+      final firstLike = likesData[0] as Map<String, dynamic>;
+      if (firstLike.containsKey('count')) {
+        likeCount = (firstLike['count'] as int?) ?? 0;
+      }
+    } else if (likesData[0] is int) {
+      // If likesData is just a count number
+      likeCount = likesData[0] as int;
+    }
+  } else if (likesData is Map<String, dynamic> && likesData.containsKey('count')) {
+    // If likesData is a Map with count
+    likeCount = (likesData['count'] as int?) ?? 0;
+  } else if (likesData is int) {
+    // If likesData is just a number
+    likeCount = likesData;
+  }
+  
+  // FIX 2: Handle profile data
+  Map<String, dynamic>? profile;
+  final profilesData = json['profiles'];
+  
+  if (profilesData is Map<String, dynamic>) {
+    profile = profilesData;
+  } else if (profilesData is List && profilesData.isNotEmpty) {
+    // If it's a list, take the first one
+    if (profilesData[0] is Map<String, dynamic>) {
+      profile = profilesData[0] as Map<String, dynamic>;
+    }
+  }
+  
+  final firstName = profile?['first_name']?.toString() ?? '';
+  final lastName = profile?['last_name']?.toString() ?? '';
+  final userName = '$firstName $lastName'.trim();
+  
+  return FeedPost(
+    id: json['id'].toString(),
+    userId: json['user_id'].toString(),
+    mediaUrl: json['media_url'].toString(),
+    mediaType: json['media_type'].toString(),
+    caption: json['caption']?.toString(),
+    createdAt: DateTime.parse(json['created_at'].toString()),
+    userName: userName.isNotEmpty ? userName : 'Anonymous',
+    userAvatar: profile?['profile_image_url']?.toString(),
+    likeCount: likeCount,
+    isLikedByUser: false, // Will be updated separately
+  );
+}}
+
+class FeedPostCard extends StatefulWidget {
+  final FeedPost post;
+  final VoidCallback onLike;
+  
+  const FeedPostCard({
+    super.key,
+    required this.post,
+    required this.onLike,
+  });
+  
+  @override
+  State<FeedPostCard> createState() => _FeedPostCardState();
+}
+
+class _FeedPostCardState extends State<FeedPostCard> {
+  @override
+  Widget build(BuildContext context) {
+    final post = widget.post;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF333333)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // User header
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: const Color(0xFF333333),
+                  backgroundImage: post.userAvatar != null && post.userAvatar!.isNotEmpty
+                      ? NetworkImage(post.userAvatar!)
+                      : null,
+                  child: post.userAvatar == null || post.userAvatar!.isEmpty
+                      ? const Icon(Icons.person, color: Colors.white, size: 20)
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        post.userName ?? 'Anonymous',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        '${_timeAgo(post.createdAt)} ago',
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.more_vert, color: Colors.grey),
+                  onPressed: () {},
+                ),
+              ],
+            ),
+          ),
+          
+          // Media content
+          if (post.mediaType == 'image')
+            GestureDetector(
+              onDoubleTap: widget.onLike,
+              child: Container(
+                height: 400,
+                color: const Color(0xFF0A0A0A),
+                child: Image.network(
+                  post.mediaUrl,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFFFF4D8D),
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    print('Image load error: $error');
+                    print('URL: ${post.mediaUrl}');
+                    return Container(
+                      color: const Color(0xFF0A0A0A),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.broken_image,
+                              color: Colors.grey,
+                              size: 48,
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Failed to load image',
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                            const SizedBox(height: 12),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                setState(() {});
+                              },
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Retry'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFF4D8D),
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'They: What happened to you?',
-                    style: TextStyle(fontSize: 16, color: Colors.white),
+                    );
+                  },
+                ),
+              ),
+            )
+          else if (post.mediaType == 'video')
+            Container(
+              height: 400,
+              color: const Color(0xFF0A0A0A),
+              child: Stack(
+                children: [
+                  Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF4D8D).withOpacity(0.8),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.play_arrow,
+                            size: 40,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Video - Tap to play',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
+            ),
+          
+          // Actions and caption
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: widget.onLike,
+                      child: Icon(
+                        post.isLikedByUser ? Icons.favorite : Icons.favorite_border,
+                        color: post.isLikedByUser ? const Color(0xFFFF4D8D) : Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: () {
+                        // Add comment functionality
+                      },
+                      child: const Icon(
+                        Icons.chat_bubble_outline,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: () {
+                        // Share functionality
+                      },
+                      child: const Icon(
+                        Icons.share,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    const Spacer(),
+                    const Icon(
+                      Icons.bookmark_border,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                
+                // Like count
+                Text(
+                  '${post.likeCount} ${post.likeCount == 1 ? 'like' : 'likes'}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                
+                // Caption
+                if (post.caption != null && post.caption!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: RichText(
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '${post.userName} ',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          TextSpan(
+                            text: post.caption!,
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                
+                // Comments preview
+                if (post.caption == null || post.caption!.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'They: What happened to you?',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
       ),
     );
+  }
+  
+  String _timeAgo(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+    
+    if (difference.inDays > 365) {
+      return '${(difference.inDays / 365).floor()}y';
+    } else if (difference.inDays > 30) {
+      return '${(difference.inDays / 30).floor()}mo';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays}d';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m';
+    } else {
+      return 'just now';
+    }
   }
 }
 
